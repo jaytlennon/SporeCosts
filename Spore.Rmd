@@ -1,0 +1,240 @@
+---
+title: "Estimations on bioenergetic costs of a spore and germination"
+author: "C. Karakoç"
+date: "8/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r config, message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+
+# ggplot theme
+mytheme<- theme_bw()+
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=12,face="bold"),
+        legend.text = element_text(size=12),
+        legend.background = element_blank(),
+        legend.title = element_text(size=12,face="bold"),
+        plot.title = element_text(size=14, face="bold", hjust=0.5),
+        strip.text = element_text(size=12, face="bold"),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+```
+
+## Sporulation genes 
+
+We have an in-house list of *Bacillus subtillis* sporulation genes (D. Schwartz, 2020). This inclusive list is combination of previously defined lists and observed data, mainly from:
+
+- Weller and Wu, Evolution, 2015, <https://doi.org/10.1111/evo.12597>
+- Zhu and Stülke, NAR, 2018, <http://subtiwiki.uni-goettingen.de/>  
+- Ramos-Silva et al, Mol Biol Evol., 2019, <https://doi.org/10.1093/molbev/msz175>
+
+According to this list, there are 880 sporulation related genes expressed during transition into and out of dormancy, that build up the spore or determine its quality. Many vital and structural proteins are also expressed during all life stages. Population heterogeneity and bet-hedging strategies also complicate interpreting expression patterns. Thus filtering data with this list might prevent the overestimation of biosynthesis costs of a spore and germination. 
+
+We can filter the genes directly related to germination to estimate spore costs only using "category 3" column.  
+
+```{r sporeGenes, message=FALSE, warning=FALSE}
+sporeGenes <- read.table("/Users/canankarakoccanan/GitHub/GitHubLennon/SporeCosts/data/SWxWWxRS_sporulation_genes.csv", sep = ",", dec = ".", header = T)
+
+# new13482001348403c (spoIISC) in spore genes data is BSU12815 in UniProt
+sporeGenes$locus_tag[sporeGenes$locus_tag =="new13482001348403c"] = "BSU12815"
+
+# G8J2-20 (cmpA) is BSU04785 in UniProt, but no gene protein information in SubtiWiki
+#sporeGenes$locus_tag[sporeGenes$locus_tag =="G8J2-20"] = "BSU04785"
+
+# filter germination related genes 
+sporeGenes_spo <- filter(sporeGenes, category3 != "Germination")  
+
+head(sporeGenes[,2:6])
+```
+
+## Protein abundance data 
+
+I obtained absolute protein abundance data of *B. subtillis* str. 168 from PaxDB (Wang, M. et al. Proteomics 2015, <https://doi.org/10.1002/pmic.201400441>). PaxDB contains whole genome protein abundance information across organisms. It provides integrated data with a better quality. Publicly available experimental data are imported and mapped onto a common namespace, and in the case of tandem mass spectrometry data, re-processed using a standardized spectral counting pipeline.
+
+Protein abundances are reported in units of parts-per-million (ppm). Protein abundance of middle sized bacteria (approx. 1 cubic micron) is estimated as approx. 3 million molecules (Milo R. Bioessays 2013, <https://doi.org/10.1002/bies.201300066>).
+Protein abundance of *B.subtillis* was reported as 2.3, 1.3, and 1.8 million during exponential growth, early stationary, and late stationary phases, respectively. Quantified are only cytosolic proteins with isoelectric point at pH 4–7 (Maass et al., Anal. Chem, 2011, <https://doi.org/10.1021/ac1031836>). 
+
+Although protein expressions differ temporally and spatially due to condition dependent regulation, most proteins have a typical abundance range to function effectively (Wang et. al, Mol. Cell. Proteomics 2012, <https://doi.org/10.1074/mcp.O111.014704>). These rough estimations might help to make order-of-magnitude estimations of the costs of biosynthesis of particular protein groups which are needed for particular traits and functions. 
+
+```{r protData, message=FALSE, warning=FALSE}
+protAbundance <- read.table("/Users/canankarakoccanan/GitHub/GitHubLennon/SporeCosts/data/protAbunData.csv", sep = ",", dec = ".", header = T)
+head(protAbundance)
+```
+## Adressing differential expression levels
+
+Although the central dogma of biology links DNA, RNA and protein, there is no trivial relationship between their abundances due to the multiple processes going beyond the transcript concentration such as translation rate and modification, protein half-lives, synthesis delays, spatial locations due to protein transport and environmental constraints (e.g as reviewed in Liu et al., Cell, 2016, <http://dx.doi.org/10.1016/j.cell.2016.03.014>). 
+
+However, we would expect that particular proteins expressed less or more temporally during sporulation. Ideally, we would expect that the differential gene expression will reflect to the temporal protein abundances. To address differential expression patterns during sporulation stages, I will use the standardized and commonly used gene transcriptome data (Nicolas et al., 2012, Science, <http://dx.doi.org/10.1126/science.1206848>). 
+
+Table S2 of this paper includes the condition dependent mRNA profiles in *B.subtillis* str. 168. I extracted the data from sporulation and germination experiments based on the information on the conditions provided in Table S1 (<http://genome.jouy.inra.fr/basysbio/bsubtranscriptome/>): 
+
+- Sporulation conditions and sampling: "Cells were grown in CH medium at 37°C and sporulation was induced by resuspension in warm sporulation medium as described by Sterlini and Mandelstam (J. M. Sterlini, J. Mandelstam, Biochem J 113, 29, Jun, 1969). The initiation of sporulation was designated T0, the time of resuspension.  Samples were harvested at hourly intervals for 6 hours [S0 to S6] for the first set of experiments and for 8 hours [S0 to S8] for a  second set of experiments."
+
+- Germination conditions and sampling: "Purified spores were obtained by growing cells in DSM medium (P. Schaeffer, J. Millet, J. P. Aubert, Proc Natl Acad Sci U S A 54, 704, Sep, 1965) at 37°C for 48 hours after which they were washed ten times in ice cold distilled water over a period of 5 days. Purified spores were heat activated at 70°C  in Tris 10 mM pH 8.4 and germination was initiated by the addition of L-alanine 10 mM (A. Moir, J Bacteriol 146, 1106, Jun, 1981). After incubation for one hour at 37°C, the culture was diluted with an equal volume of 2X LB medium and germinating cells were harvested at 135, 150 or 180 minutes after addition of L-alanine [G135, G150 and G180]."
+
+
+```{r expressionData, message=FALSE, warning=FALSE}
+expressionData <- read.table("/Users/canankarakoccanan/GitHub/GitHubLennon/SporeCosts/data/TableS2-NicholasEtAl-sporulation.csv", sep = ",", dec = ".", header = T)
+
+# corrections
+# new_2459114_2459288 in expression data is BSU23616 (mciZ) in SubtiWiki
+expressionData$locus_tag[expressionData$locus_tag =="new_2459114_2459288"] = "BSU23616"
+head(expressionData)
+```
+
+## Processing expression data
+I took the average of all technical replicates. Here I will subset sporulation experiments (T0-T8), and calculate the change in profiles relative to the time 0 to reflect down- and upregulated genes. I will assume that expression fluctuations in time relative to the initial expression would reflect protein expression levels. I will then use these values as fold-change (>1: upregulated genes and <1: downregulated genes relative to time 0) by multiplying them with protein abundances. 
+
+```{r expressionDataRel, message=FALSE, warning=FALSE}
+library(tidyverse)
+expressionDataRel <- cbind.data.frame(expressionData[,1:2],                                            expressionData[,4:11]/expressionData[,3])
+head(expressionDataRel)
+```
+
+## Other information
+Merging data based on gene/protein names is problematic. There are often synonyms, discarded or updated genes/proteins. There are also newly discovered genes or unknown proteins. After merging sporulation genes with protein abundances, I manually found conflicts and corrected a part of the information using SubtiWiki and UniProt (<https://www.uniprot.org/>) databases. I coded the rest as non-available information. 
+
+```{r corrections, message=FALSE, warning=FALSE}
+corrections <- read.table("/Users/canankarakoccanan/GitHub/GitHubLennon/SporeCosts/data/manuallyFoundAbundances.csv", sep = ",", dec = ".", header = T)
+head(corrections)
+
+# merge protein abundance data with corrections
+protAbundanceAdd <- rbind.data.frame(protAbundance, corrections[,c("gene", "abundance")])
+```
+
+I downloaded protein length & genome length information from SubtiWiki. 
+```{r lengthData, message=FALSE, warning=FALSE}
+lengthData <- read.table("/Users/canankarakoccanan/GitHub/GitHubLennon/SporeCosts/data/subtiwiki.gene.export.2021-06-25.csv", sep = ",", dec = ".", header = T)
+head(lengthData)
+```
+## Merge all data 
+
+Two expression and 92 protein abundance data is not available (including germination), which is unfortunately 10% of the data. There might be ways to estimate uncertainty. One way is to assume an average protein abundance for the missing values, another way might be filling the missing data with some sort of model (e.g. Mehdi et al., MCP, 2014, <https://doi.org/10.1074/mcp.M113.033076>).
+
+```{r mergeData, message=FALSE, warning=FALSE}
+
+# longitudinal expression data
+mergeData <- sporeGenes_spo %>% 
+   left_join(lengthData, by = "locus_tag") %>%
+   left_join(protAbundanceAdd, by = "gene") %>%
+   left_join(expressionDataRel[,-1], by = "locus_tag") %>%
+   pivot_longer(names_to = "time", values_to = "expression_relative", 
+               cols = t1_average:t8_average)
+```
+
+## Estimating costs 
+Below are the biosynthesis costs of replication, transcription and translation based on the principles explained in: 
+
+- Lynch and Marinov, PNAS, 2015, <https://doi.org/10.1073/pnas.1514974112>
+- Mahmoudabadi et al., PNAS, 2017, <https://doi.org/10.1073/pnas.1701670114>
+
+### Replication 
+Costs associated with replication is pronounced at the early stage of sporulation. Since a spore contains the replicate of a mother cell’s genome, total costs of replication per cell is the replication of the whole genome. Although replication is a complex process with multiple steps from unwinding, primer synthesis to Okazaki fragment ligation and proofreading, most of the energy budget is used by the precursor synthesis and polymerization. Direct costs of replication in a cell is: 
+
+$C_{RD}$ ≈ $2L_{g}$ $(\overline{c_{sd}}+c_{pd})$
+
+where $L_{g}$ is the length of the genome, which is ≈ 4.1348 Mb (median) for *B.subtills*, and $\overline{c_{sd}}$ is the average direct costs of a DNA synthesis (11 PD), $c_{pd}$ is the chain elongation cost per base (2 PD). $L_{g}$ is multiplied by 2 for the 2 DNA strands. Based on this estimation, replication cost of a *B. subtillis* genome replication is ≈ $1.1 x 10_{9}$ PD. Opportunity costs of replication can be estimated as: 
+
+$C_{RO}$ ≈ $2L_{g}$$c_{od}$
+
+where $(c_{od})$ is the average opportunity costs of a DNA base biosynthesis which is ≈ 34 PO (33 PO for the precursor synthesis and 1 PO for the DNA synthesis from precursors). Based on these assumptions, total costs of replication $C_{RT}$ is $C_{RD}$ + $C_{RO}$ = $1.1 x 10^{9}$ PT. 
+
+```{r replication, message=FALSE, warning=FALSE}
+
+rd <- 2*4134800*(11+2)
+ro <- 2*4134800*34
+
+```
+
+### Transcription
+
+Gene expression is a noisy process internally; and combined with external noise -even under constant conditions, transcription machinery is variable from cell to cell. However, we can make rough order of magnitude estimations using the protein abundance data described above, assuming transcript:protein ratio is roughly 1:1000. Differences in transcript abundances at different stages can be estimated using temporal expression levels relative to the time 0. 
+
+Although transcription is also a combination of complex mechanisms such as activation, initiation, termination, proofreading and splicing, above mentioned works indicated that the majority of budget is invested in the synthesis of nucleotides. Expression costs of all genes are the sum of the costs of all protein coding genes. First component of the transcription costs is the energy needed to synthesize the ribonucleotide building blocks, and the second component is the polymerization costs. 
+
+$C_{TD,t}$ ≈ $(\overline{c_{sr}}+c_{pr}\delta_{r}t)\sum_{j = 1}^{n}L_{RNA,j}{N}_{RNA,j,t}$
+
+where $L_{RNA,j}$ is the length of the mRNA transcript, $N_{RNA,j,t}$ is the copy number of the mRNA at a particular time point. Similar to replication, $\overline{c_{sr}}$ is synthesis of an RNA base from precursor metabolites (10 PD). $(c_{pr})$ is the polymerization costs (2 PD). $\delta_{r}t$ is the half-life of an mRNA which is about 5 minutes for Bacillus. Opportunity costs of transcription will be similarly: 
+
+$C_{TO,t}$ ≈ $\overline{c_{or}}\sum_{j = 1}^{n}L_{RNA,j}{N}_{RNA,j,t}$
+
+Where $\overline{c_{or}}$is the average opportunity costs of an RNA nucleotide (≈ 31 PO). Total transcriptional costs $C_{TT,t}$ will be $C_{TD,t}$ + $C_{TO,t}$.
+
+```{r transcription, message=FALSE, warning=FALSE}
+
+transcriptCosts <- mergeData %>%
+  mutate(transcriptTime = (as.numeric(abundance)/1000)*3*expression_relative*gene_length) %>% #protein abundance/1000 X 3 X fold-change (expression level relative to time 0) X gene length
+  # the reason I multiply with 3 is that the protein abundance is reported as parts per million, and an average size bacteria has about 3 million protein molecules
+  group_by(time) %>%
+  summarize(transcriptSum = sum(transcriptTime, na.rm = T)) %>% # I ignore NAs for the moment
+  mutate(transcriptDirect = transcriptSum*(10+(2*12))) %>% # samples are taken every hour, we expect 60 minutes / 5 minutes (degradation rate) = 12 re-polymerization events, assuming nucleotides are well recycled and it only affects polymerization costs
+  mutate(transcriptOpportunity = transcriptSum*31) %>%
+  mutate(transcriptTotal = transcriptDirect + transcriptOpportunity)
+```
+
+### Translation
+
+Proteins occur much greater magnitude than mRNA abundance, indicating that the costs of translation is larger than the transcription costs. On the other hand, half-life of mRNA is shorter, polymerization of ribonucleotides is more costly than that of amino acids. Majority of protein synthesis costs come from the translation, and so the costs of processes such as initiation, termination and post translational modification have been ignored in earlier works. Similar to the transcription costs, translation cost at a particular time point is: 
+
+$C_{PD,t}$ ≈ $(\overline{c_{sp}}+c_{pp}\delta_{p} t)\sum_{j = 1}^{n}L_{Protein,j}{N}_{Protein,j,t}$
+
+Average synthesis costs $\overline{c_{sp}}$ is 4 PD, amino acid polymerization costs $c_{pp}$ is 2 PD. Protein degradation rate $\delta_{p}t$ is about 0.4 per hour in bacteria, so that we can ignore. Opportunity cost of an amino acid $\overline{c_{op}}$ is about 24 PO. Opportunity costs for protein translation will be then: 
+
+$C_{PO,t}$ ≈ $\overline{c_{op}}\sum_{j = 1}^{n}L_{Protein,j}{N}_{Protein,j,t}$
+
+```{r translation, message=FALSE, warning=FALSE}
+
+translationCosts <- mergeData %>%
+  mutate(translationTime = (as.numeric(abundance))*3*expression_relative*protein_length) %>% # protein abundance X fold-change (expression level relative to time 0) X protein length
+    # again the reason I multiply with 3 is that the protein abundance is reported as parts per million, and an average size bacteria has about 3 million protein molecules
+  group_by(time) %>%
+  summarize(translationSum = sum(translationTime, na.rm = T)) %>% # I ignore NAs for the moment
+  mutate(translationDirect = translationSum*(4+2)) %>% # ignoring protein degradation
+  mutate(translationOpportunity = translationSum*24) %>%
+  mutate(translationTotal = translationDirect + translationOpportunity)
+```
+
+### Summary
+
+- Discuss protein abundance database and fold-change idea using microarray data.
+- Costs in time seems pretty flat, because the gene expression data has no major fluctuations compared to time 0. Discuss about taking the difference or back transforming log2 values instead of calculating relative change.
+- Discuss about filling the missing data. 
+- Transcription costs are lower than expected. Difference between opportunity and direct costs are similar due to the high degradation rates of mRNAs. 
+- Replication costs are paid in any case, but translation costs are still higher.
+- How to incorporate germination?
+- I am not convinced with time series attempt overall, because cumulative costs are high, since we assume proteins are expressed all the time, and expression data does not help at all.
+- I assumed that there are 3 million proteins approximately due to homeostasis, but I am not sure how would it fluctuate at different stages. 
+
+```{r plot, message=FALSE, warning=FALSE}
+
+costs  <- c(transcriptCosts$transcriptDirect, 
+               transcriptCosts$transcriptOpportunity, 
+               translationCosts$translationDirect,
+               translationCosts$translationOpportunity)
+source <- rep(c("transcription", "translation"), each = 16)
+type   <- rep(c("direct", "opportunity"), each = 8, times = 2)
+time   <- rep(1:8, times = 4)
+
+plotData <- cbind.data.frame(time, source, type, costs)
+
+# Plot 
+ggplot(plotData, aes(x = time, y = log10(costs), color = source, alpha = type))+
+  geom_hline(yintercept = log10(rd), linetype ="dashed", color = "grey")+
+  geom_hline(yintercept = log10(ro), linetype ="dashed", color = "grey", alpha = 0.5)+
+  geom_line()+
+  geom_point(size = 4, position = position_dodge(width = 0.5))+
+  annotate("text", x = 2.3, y = 8.4, label = "replication cost - opportunity")+
+  annotate("text", x = 2, y = 7.9, label = "replication cost - direct")+
+  ylab("log(Costs) in units of ATP")+
+  scale_color_manual(values = c("firebrick", "darkblue"))+
+  scale_alpha_manual(values = c(1,0.5))+
+  mytheme
+
+```
+
